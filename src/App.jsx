@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   signInAnonymously, 
-  onAuthStateChanged 
+  onAuthStateChanged
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -18,8 +18,6 @@ import {
   Calendar, 
   Clock, 
   Phone, 
-  CheckCircle, 
-  XCircle, 
   Menu,
   X,
   Lock,
@@ -32,13 +30,14 @@ import {
   Activity,
   Heart,
   MapPin,
-  ArrowRight
+  ArrowRight,
+  MessageCircle, 
+  Printer
 } from 'lucide-react';
 
-// --- Step 5: You will update this section with your keys ---
-// For now, these are placeholders. The app will load but data won't save 
-// until you replace this with your actual config from Firebase Console.
-
+// --- CONFIGURATION ---
+// IMPORTANT: Replace these values with your actual Firebase project keys
+// Go to Firebase Console -> Project Settings -> General -> Your Apps
 const firebaseConfig = {
   apiKey: "AIzaSyDJosQQhRGcebaxJQ37gNTnqXawsYHO9oI",
   authDomain: "harmony-acupuncture.firebaseapp.com",
@@ -49,12 +48,13 @@ const firebaseConfig = {
 };
 
 
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- Translations ---
+// --- Translations & Content ---
 const TRANSLATIONS = {
   en: {
     menu: {
@@ -64,21 +64,21 @@ const TRANSLATIONS = {
       about: "About",
       testimonials: "Testimonials"
     },
-    title: "Harmony Acupuncture",
+    title: "Wellspring Acupuncture",
     subtitle: "Integrative Medicine & Wellness",
     login: "Staff Login",
     logout: "Logout",
-    heroTitle: "Balance Your Body, Heal Your Mind",
+    heroTitle: "Restore Your Vitality",
     heroSubtitle: "Experience the profound benefits of traditional acupuncture in a modern, serene setting.",
     bookNow: "Book an Appointment",
     learnMore: "Learn More",
-    welcomeTitle: "Welcome to Harmony",
+    welcomeTitle: "Welcome to Wellspring",
     welcomeText: "We are dedicated to providing personalized care that addresses the root cause of your health concerns. Our clinic offers a sanctuary for healing, combining ancient wisdom with modern medical understanding.",
     bookingTitle: "Schedule Your Visit",
-    bookingSubtitle: "Select a time that works for you. 5 private treatment suites available hourly.",
+    bookingSubtitle: "Select a time that works for you. Private treatment sessions available every 30 minutes.",
     selectDate: "Select Date",
-    slotsAvailable: "suites left",
-    full: "Full",
+    slotsAvailable: "slot available",
+    full: "Booked",
     blocked: "Reserved",
     bookSlot: "Request Appointment",
     name: "Full Name",
@@ -99,7 +99,7 @@ const TRANSLATIONS = {
     cancelAppt: "Cancel",
     confirmCancel: "Cancel this appointment?",
     past: "Past",
-    footer: "© 2024 Harmony Acupuncture. All rights reserved.",
+    footer: "© 2025 Wellspring Acupuncture. All rights reserved.",
     servicesPage: {
       title: "Our Specialties",
       subtitle: "Comprehensive care for your well-being",
@@ -112,7 +112,7 @@ const TRANSLATIONS = {
     },
     aboutPage: {
       title: "Our Philosophy",
-      p1: "Founded on the principles of compassion and integrity, Harmony Acupuncture has served the community for over 15 years. We strive to create a partnership with every patient.",
+      p1: "Founded on the principles of compassion and integrity, Wellspring Acupuncture has served the community for over 15 years. We strive to create a partnership with every patient.",
       p2: "Our practitioners are licensed and board-certified, bringing decades of combined experience to your treatment plan.",
       stats: ["15+ Years", "5k+ Patients", "Licensed Pros"]
     },
@@ -120,7 +120,7 @@ const TRANSLATIONS = {
       title: "Patient Stories",
       list: [
         { name: "Sarah J.", text: "The most relaxing medical experience I've ever had. My back pain is finally manageable without medication." },
-        { name: "Michael C.", text: "Professional, clean, and incredibly effective. I recommend Harmony to everyone I know." },
+        { name: "Michael C.", text: "Professional, clean, and incredibly effective. I recommend Wellspring to everyone I know." },
         { name: "Emily R.", text: "Dr. Wei really listens. I felt heard and cared for from the moment I walked in." }
       ]
     }
@@ -133,7 +133,7 @@ const TRANSLATIONS = {
       about: "關於我們",
       testimonials: "見證"
     },
-    title: "和諧針灸中心",
+    title: "源泉針灸中心",
     subtitle: "中西醫結合 • 全人健康",
     login: "員工登入",
     logout: "登出",
@@ -141,13 +141,13 @@ const TRANSLATIONS = {
     heroSubtitle: "在現代舒適的環境中，體驗傳統針灸的深層療效。",
     bookNow: "立即預約",
     learnMore: "了解更多",
-    welcomeTitle: "歡迎來到和諧",
+    welcomeTitle: "歡迎來到源泉",
     welcomeText: "我們致力於提供個性化的護理，解決您健康問題的根源。我們的診所結合了古老的智慧與現代醫學，為您提供一個療癒的避風港。",
     bookingTitle: "預約您的診療",
-    bookingSubtitle: "選擇適合您的時間。每日提供5間私人治療室。",
+    bookingSubtitle: "選擇適合您的時間。每30分鐘提供一個私人治療時段。",
     selectDate: "選擇日期",
     slotsAvailable: "個名額",
-    full: "已滿",
+    full: "已預約",
     blocked: "保留",
     bookSlot: "預約時段",
     name: "姓名",
@@ -168,7 +168,7 @@ const TRANSLATIONS = {
     cancelAppt: "取消",
     confirmCancel: "確定要取消此預約嗎？",
     past: "已過",
-    footer: "© 2024 和諧針灸中心 版權所有",
+    footer: "© 2025 源泉針灸中心 版權所有",
     servicesPage: {
       title: "專業服務",
       subtitle: "為您量身定制的整體療法",
@@ -181,7 +181,7 @@ const TRANSLATIONS = {
     },
     aboutPage: {
       title: "我們的理念",
-      p1: "和諧針灸中心建立在同情和誠信的原則之上，服務社區已超過15年。我們致力於與每一位患者建立夥伴關係。",
+      p1: "源泉針灸中心建立在同情和誠信的原則之上，服務社區已超過15年。我們致力於與每一位患者建立夥伴關係。",
       p2: "我們的醫師均持有執照和委員會認證，為您的治療計劃帶來數十年的綜合經驗。",
       stats: ["15年+ 經驗", "5000+ 患者", "認證專家"]
     },
@@ -189,15 +189,26 @@ const TRANSLATIONS = {
       title: "患者心聲",
       list: [
         { name: "Sarah J.", text: "這是我經歷過最放鬆的醫療體驗。我的背痛終於在不吃藥的情況下得到了控制。" },
-        { name: "Michael C.", text: "專業、乾淨，而且非常有效。我向所有認識的人推薦和諧針灸。" },
+        { name: "Michael C.", text: "專業、乾淨，而且非常有效。我向所有認識的人推薦源泉針灸。" },
         { name: "Emily R.", text: "魏醫生真的很用心聽。從我走進來的那一刻起，我就感到了被關心。" }
       ]
     }
   }
 };
 
-const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17];
-const MAX_SLOTS = 5;
+// --- Time Slots Configuration ---
+// Generate 30-minute intervals from 9:00 to 17:00
+const generateTimeSlots = (startHour, endHour) => {
+  const slots = [];
+  for (let h = startHour; h < endHour; h++) {
+    slots.push(`${h}:00`);
+    slots.push(`${h}:30`);
+  }
+  return slots;
+};
+
+const TIME_SLOTS = generateTimeSlots(9, 17); // 9:00, 9:30... 16:30
+const MAX_SLOTS = 1; // Only one slot available per time
 
 // --- Helper Functions ---
 
@@ -214,6 +225,13 @@ const formatDate = (date) => {
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+const getNextHalfHour = (timeStr) => {
+  const [h, m] = timeStr.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h, m + 30);
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 // --- Components ---
 
@@ -274,17 +292,18 @@ export default function App() {
 
   useEffect(() => {
     // Basic anonymous auth
-    signInAnonymously(auth).catch(err => console.error("Auth error:", err));
+    signInAnonymously(auth).catch((err) => {
+      console.error("Authentication Error: ", err);
+    });
     return onAuthStateChanged(auth, setUser);
   }, []);
 
   useEffect(() => {
-    // Only fetch if user is logged in
     if (!user) return;
     
-    // Using a simpler collection path for your local project
+    // Standard Firestore collection path
     const q = collection(db, 'appointments');
-    
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setAppointments(data);
@@ -293,9 +312,9 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  const getSlotData = (hour) => {
+  const getSlotData = (slotTime) => {
     const slotAppointments = appointments.filter(
-      app => app.date === selectedDate && app.hour === hour
+      app => app.date === selectedDate && app.hour === slotTime
     );
     const isBlocked = slotAppointments.some(app => app.type === 'blocked');
     const bookings = slotAppointments.filter(app => app.type === 'booking');
@@ -303,8 +322,8 @@ export default function App() {
     return { isBlocked, bookings, remaining: isBlocked ? 0 : remaining };
   };
 
-  const handleBookClick = (hour) => {
-    setSelectedSlot(hour);
+  const handleBookClick = (slotTime) => {
+    setSelectedSlot(slotTime);
     setIsBookingModalOpen(true);
     setFormError('');
     setEmail('');
@@ -347,12 +366,12 @@ export default function App() {
     }
   };
 
-  const toggleBlockSlot = async (hour, isCurrentlyBlocked) => {
+  const toggleBlockSlot = async (slotTime, isCurrentlyBlocked) => {
     if (!isAdmin) return;
     try {
       if (isCurrentlyBlocked) {
         const blockDoc = appointments.find(
-          app => app.date === selectedDate && app.hour === hour && app.type === 'blocked'
+          app => app.date === selectedDate && app.hour === slotTime && app.type === 'blocked'
         );
         if (blockDoc) {
           await deleteDoc(doc(db, 'appointments', blockDoc.id));
@@ -360,7 +379,7 @@ export default function App() {
       } else {
         await addDoc(collection(db, 'appointments'), {
           date: selectedDate,
-          hour: hour,
+          hour: slotTime,
           type: 'blocked',
           blockedBy: user.uid,
           createdAt: serverTimestamp()
@@ -386,7 +405,7 @@ export default function App() {
     const results = appointments.filter(
       app => app.phone === cancelPhone && app.type === 'booking'
     );
-    results.sort((a, b) => new Date(a.date) - new Date(b.date) || a.hour - b.hour);
+    results.sort((a, b) => new Date(a.date) - new Date(b.date) || a.hour.localeCompare(b.hour));
     setFoundBookings(results);
     setHasSearched(true);
   };
@@ -404,9 +423,7 @@ export default function App() {
     setViewMonth(newDate);
   };
 
-  // Safe icon renderer
   const getServiceIcon = (index) => {
-    // Return the component directly, not in an array
     if (index % 4 === 0) return <Leaf size={32} />;
     if (index % 4 === 1) return <Activity size={32} />;
     if (index % 4 === 2) return <Heart size={32} />;
@@ -524,6 +541,13 @@ export default function App() {
                    })()}
                  </div>
               </div>
+
+              <div className="bg-emerald-50 p-4 rounded-sm border border-emerald-100">
+                <div className="text-xs text-emerald-800 font-bold uppercase mb-2">Selected Date</div>
+                <div className="text-xl font-serif font-bold text-emerald-900">
+                  {parseLocal(selectedDate).toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-TW', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -533,19 +557,24 @@ export default function App() {
               <span className="text-xs normal-case text-stone-500 font-normal">Eastern Standard Time</span>
             </h3>
             <div className="space-y-4">
-              {HOURS.map((hour) => {
-                const { isBlocked, remaining, bookings } = getSlotData(hour);
+              {TIME_SLOTS.map((slot) => {
+                const { isBlocked, remaining, bookings } = getSlotData(slot);
                 const now = new Date();
                 const isToday = selectedDate === formatDate(now);
-                const isPastTime = isToday && hour <= now.getHours();
+                
+                // Compare times for disabling past slots
+                const [h, m] = slot.split(':').map(Number);
+                const slotDate = new Date();
+                slotDate.setHours(h, m, 0, 0);
+                const isPastTime = isToday && slotDate < now;
                 const isFull = remaining === 0;
                 
                 return (
-                  <div key={hour} className="bg-white border border-stone-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:border-emerald-200 transition-colors">
+                  <div key={slot} className="bg-white border border-stone-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:border-emerald-200 transition-colors">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-1">
                         <Clock size={18} className="text-emerald-700" />
-                        <span className="text-xl font-serif font-bold text-stone-800">{hour}:00 - {hour + 1}:00</span>
+                        <span className="text-xl font-serif font-bold text-stone-800">{slot} - {getNextHalfHour(slot)}</span>
                       </div>
                       <div className="flex gap-2 text-xs font-bold uppercase tracking-wider">
                          {isBlocked ? (
@@ -562,7 +591,7 @@ export default function App() {
 
                     {!isAdmin ? (
                       <button
-                        onClick={() => handleBookClick(hour)}
+                        onClick={() => handleBookClick(slot)}
                         disabled={isFull || isBlocked || isPastTime}
                         className={`px-6 py-3 text-sm font-bold uppercase tracking-wider transition-all min-w-[140px] ${
                           isFull || isBlocked || isPastTime
@@ -574,7 +603,7 @@ export default function App() {
                       </button>
                     ) : (
                       <div className="flex gap-2">
-                        <button onClick={() => toggleBlockSlot(hour, isBlocked)} className="text-xs bg-stone-200 hover:bg-stone-300 px-3 py-2 font-bold uppercase">{isBlocked ? t.unblock : t.blockHour}</button>
+                        <button onClick={() => toggleBlockSlot(slot, isBlocked)} className="text-xs bg-stone-200 hover:bg-stone-300 px-3 py-2 font-bold uppercase">{isBlocked ? t.unblock : t.blockHour}</button>
                       </div>
                     )}
                     
@@ -587,8 +616,9 @@ export default function App() {
                                <div className="text-stone-500">{b.phone}</div>
                              </div>
                              <div className="flex gap-1">
-                               <a href={`tel:${b.phone}`} className="p-1 bg-white border hover:bg-emerald-50"><Phone size={10}/></a>
-                               <button onClick={() => handleDeleteBooking(b.id)} className="p-1 bg-white border hover:bg-red-50 text-red-600"><Trash2 size={10}/></button>
+                               <a href={`tel:${b.phone}`} className="p-1 bg-white border hover:bg-emerald-50" title="Call"><Phone size={12}/></a>
+                               <a href={`sms:${b.phone}`} className="p-1 bg-white border hover:bg-emerald-50" title="Text"><MessageCircle size={12}/></a>
+                               <button onClick={() => handleDeleteBooking(b.id)} className="p-1 bg-white border hover:bg-red-50 text-red-600" title="Delete"><Trash2 size={12}/></button>
                              </div>
                           </div>
                         ))}
@@ -656,9 +686,10 @@ export default function App() {
     <div className="min-h-screen bg-white text-stone-800 font-sans selection:bg-emerald-100 selection:text-emerald-900 flex flex-col">
       <div className="bg-emerald-900 text-emerald-100 text-xs py-2 px-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex gap-4">
-             <span className="flex items-center gap-1"><Phone size={12}/> 617-555-0123</span>
-             <span className="hidden sm:flex items-center gap-1"><MapPin size={12}/> 123 Wellness Ave, Boston, MA</span>
+          <div className="flex flex-col md:flex-row md:gap-4 gap-1">
+             <span className="flex items-center gap-1"><Phone size={12}/> 508-628-1888</span>
+             <span className="flex items-center gap-1"><Printer size={12}/> Fax: 508-628-1889</span>
+             <span className="hidden sm:flex items-center gap-1"><MapPin size={12}/> 655 Concord St, Framingham 01702</span>
           </div>
           <div className="flex gap-4">
              <button onClick={() => setLang(l => l === 'en' ? 'zh' : 'en')} className="hover:text-white transition-colors">
@@ -677,10 +708,10 @@ export default function App() {
         <div className="max-w-6xl mx-auto px-6 h-20 flex justify-between items-center">
           <button onClick={() => setCurrentPage('home')} className="flex items-center gap-3 group">
             <div className="w-10 h-10 bg-emerald-900 flex items-center justify-center text-white">
-              <span className="font-serif italic font-bold text-2xl">H</span>
+              <span className="font-serif italic font-bold text-2xl">W</span>
             </div>
             <div className="text-left">
-              <h1 className="font-serif font-bold text-2xl text-emerald-950 tracking-tight">
+              <h1 className="font-serif font-bold text-xl md:text-2xl text-emerald-950 tracking-tight">
                 {t.title}
               </h1>
             </div>
@@ -758,9 +789,9 @@ export default function App() {
            </div>
            <div>
              <h4 className="text-white font-bold uppercase tracking-widest mb-4">Contact</h4>
-             <p>123 Wellness Ave, Boston, MA 02116</p>
-             <p>info@harmonyacupuncture.com</p>
-             <p>617-555-0123</p>
+             <p>655 Concord Street, Framingham 01702</p>
+             <p>508-628-1888</p>
+             <p>Fax: 508-628-1889</p>
            </div>
            <div>
              <h4 className="text-white font-bold uppercase tracking-widest mb-4">Hours</h4>
@@ -771,7 +802,7 @@ export default function App() {
         </div>
       </footer>
 
-      <Modal isOpen={isBookingModalOpen} onClose={() => setIsBookingModalOpen(false)} title={`${t.bookSlot}: ${selectedSlot}:00`}>
+      <Modal isOpen={isBookingModalOpen} onClose={() => setIsBookingModalOpen(false)} title={`${t.bookSlot}: ${selectedSlot}`}>
         <form onSubmit={submitBooking} className="space-y-5">
           <div className="p-4 bg-stone-50 text-stone-600 text-sm border-l-4 border-emerald-600">
              <p>{t.enterDetails}</p>
@@ -810,7 +841,7 @@ export default function App() {
                 <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                   {foundBookings.map(app => (
                     <div key={app.id} className="bg-white border border-stone-200 p-4 flex justify-between items-center group shadow-sm hover:border-emerald-200 transition-colors">
-                       <div><div className="font-bold text-emerald-900 font-serif text-lg">{app.date}</div><div className="text-sm text-stone-500">{app.hour}:00 - {app.name}</div></div>
+                       <div><div className="font-bold text-emerald-900 font-serif text-lg">{app.date}</div><div className="text-sm text-stone-500">{app.hour} - {app.name}</div></div>
                        <button onClick={() => handleDeleteBooking(app.id, t.confirmCancel)} className="text-xs bg-red-50 text-red-700 hover:bg-red-100 px-4 py-2 font-bold uppercase tracking-wider transition-colors">{t.cancel}</button>
                     </div>
                   ))}
