@@ -194,20 +194,6 @@ const TRANSLATIONS = {
   }
 };
 
-// --- Time Slots Configuration ---
-// Generate 15-minute intervals from 9:00 to 16:00 (4 PM)
-// This will generate slots from 9:00 up to 15:45
-const generateTimeSlots = (startHour, endHour) => {
-  const slots = [];
-  for (let h = startHour; h < endHour; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      slots.push(`${h}:${m === 0 ? '00' : m}`);
-    }
-  }
-  return slots;
-};
-
-const TIME_SLOTS = generateTimeSlots(9, 16); 
 const MAX_SLOTS = 1; // Only one slot available per time
 
 // --- Helper Functions ---
@@ -224,6 +210,32 @@ const formatDate = (date) => {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+// Generate dynamic slots based on day of week
+const getDailySlots = (dateStr) => {
+  const date = parseLocal(dateStr);
+  const day = date.getDay(); // 0 = Sun, 6 = Sat
+  
+  if (day === 0) return []; // Sunday closed
+
+  // M-F (1-5): 9am to 4pm last appt
+  // Sat (6): 9am to 3pm last appt
+  let startHour = 9;
+  let endHour = day === 6 ? 15 : 16; 
+
+  const slots = [];
+  for (let h = startHour; h <= endHour; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      // If it's the last hour, we only include :00 (if ending exactly at hour)
+      // BUT requirement is "last appointment 4pm".
+      // So we include 16:00 and stop there.
+      if (h === endHour && m > 0) break;
+      
+      slots.push(`${h}:${m === 0 ? '00' : m}`);
+    }
+  }
+  return slots;
 };
 
 // --- Components ---
@@ -474,159 +486,173 @@ export default function App() {
     </div>
   );
 
-  const renderAppointments = () => (
-    <div className="animate-in fade-in duration-500 min-h-screen">
-      <div className="bg-emerald-900 text-white py-16 px-6 text-center">
-        <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">{t.bookingTitle}</h2>
-        <p className="text-emerald-100 max-w-2xl mx-auto">{t.bookingSubtitle}</p>
-      </div>
+  const renderAppointments = () => {
+    // Dynamically calculate available slots based on selectedDate
+    const dailySlots = getDailySlots(selectedDate);
 
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="flex flex-col md:flex-row gap-12">
-          <div className="md:w-1/3">
-            <div className="bg-white p-6 shadow-lg border border-stone-100 sticky top-24">
-              <h3 className="text-lg font-bold text-emerald-900 mb-6 flex items-center gap-2 uppercase tracking-wide text-sm border-b border-stone-100 pb-2">
-                <Calendar size={16} /> {t.selectDate}
-              </h3>
-              
-              <div className="mb-6">
-                 <div className="flex justify-between items-center mb-4">
-                   <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-stone-100 rounded-full text-stone-500"><ChevronLeft size={20}/></button>
-                   <span className="font-bold text-stone-700">
-                     {viewMonth.toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-TW', { year: 'numeric', month: 'long' })}
-                   </span>
-                   <button onClick={() => changeMonth(1)} className="p-1 hover:bg-stone-100 rounded-full text-stone-500"><ChevronRight size={20}/></button>
-                 </div>
-                 
-                 <div className="grid grid-cols-7 text-center mb-2">
-                   {(lang === 'en' ? ['S','M','T','W','T','F','S'] : ['日','一','二','三','四','五','六']).map(d => (
-                     <div key={d} className="text-xs font-bold text-stone-400">{d}</div>
-                   ))}
-                 </div>
-                 
-                 <div className="grid grid-cols-7 gap-1">
-                   {(() => {
-                     const year = viewMonth.getFullYear();
-                     const month = viewMonth.getMonth();
-                     const firstDay = new Date(year, month, 1);
-                     const lastDay = new Date(year, month + 1, 0);
-                     const startDay = firstDay.getDay();
-                     const slots = [];
-                     for(let i=0; i<startDay; i++) slots.push(<div key={`empty-${i}`} />);
-                     for(let i=1; i<=lastDay.getDate(); i++) {
-                       const date = new Date(year, month, i);
-                       const dateStr = formatDate(date);
-                       const isSelected = dateStr === selectedDate;
-                       const isPast = date < new Date(new Date().setHours(0,0,0,0));
-                       slots.push(
-                         <button
-                           key={dateStr}
-                           onClick={() => !isPast && setSelectedDate(dateStr)}
-                           disabled={isPast}
-                           className={`h-9 w-9 mx-auto rounded-full flex items-center justify-center text-sm transition-all ${
-                             isSelected ? 'bg-emerald-800 text-white font-bold' : 'hover:bg-emerald-50 text-stone-600'
-                           } ${isPast ? 'text-stone-300 cursor-not-allowed opacity-50 hover:bg-transparent' : ''}`}
-                         >
-                           {i}
-                         </button>
-                       );
-                     }
-                     return slots;
-                   })()}
-                 </div>
-              </div>
+    return (
+      <div className="animate-in fade-in duration-500 min-h-screen">
+        <div className="bg-emerald-900 text-white py-16 px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">{t.bookingTitle}</h2>
+          <p className="text-emerald-100 max-w-2xl mx-auto">{t.bookingSubtitle}</p>
+        </div>
 
-              <div className="bg-emerald-50 p-4 rounded-sm border border-emerald-100">
-                <div className="text-xs text-emerald-800 font-bold uppercase mb-2">Selected Date</div>
-                <div className="text-xl font-serif font-bold text-emerald-900">
-                  {parseLocal(selectedDate).toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-TW', { weekday: 'long', month: 'long', day: 'numeric' })}
+        <div className="max-w-6xl mx-auto px-6 py-12">
+          <div className="flex flex-col md:flex-row gap-12">
+            <div className="md:w-1/3">
+              <div className="bg-white p-6 shadow-lg border border-stone-100 sticky top-24">
+                <h3 className="text-lg font-bold text-emerald-900 mb-6 flex items-center gap-2 uppercase tracking-wide text-sm border-b border-stone-100 pb-2">
+                  <Calendar size={16} /> {t.selectDate}
+                </h3>
+                
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-stone-100 rounded-full text-stone-500"><ChevronLeft size={20}/></button>
+                    <span className="font-bold text-stone-700">
+                      {viewMonth.toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-TW', { year: 'numeric', month: 'long' })}
+                    </span>
+                    <button onClick={() => changeMonth(1)} className="p-1 hover:bg-stone-100 rounded-full text-stone-500"><ChevronRight size={20}/></button>
+                  </div>
+                  
+                  <div className="grid grid-cols-7 text-center mb-2">
+                    {(lang === 'en' ? ['S','M','T','W','T','F','S'] : ['日','一','二','三','四','五','六']).map(d => (
+                      <div key={d} className="text-xs font-bold text-stone-400">{d}</div>
+                    ))}
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-1">
+                    {(() => {
+                      const year = viewMonth.getFullYear();
+                      const month = viewMonth.getMonth();
+                      const firstDay = new Date(year, month, 1);
+                      const lastDay = new Date(year, month + 1, 0);
+                      const startDay = firstDay.getDay();
+                      const slots = [];
+                      for(let i=0; i<startDay; i++) slots.push(<div key={`empty-${i}`} />);
+                      for(let i=1; i<=lastDay.getDate(); i++) {
+                        const date = new Date(year, month, i);
+                        const dateStr = formatDate(date);
+                        const isSelected = dateStr === selectedDate;
+                        const isPast = date < new Date(new Date().setHours(0,0,0,0));
+                        slots.push(
+                          <button
+                            key={dateStr}
+                            onClick={() => !isPast && setSelectedDate(dateStr)}
+                            disabled={isPast}
+                            className={`h-9 w-9 mx-auto rounded-full flex items-center justify-center text-sm transition-all ${
+                              isSelected ? 'bg-emerald-800 text-white font-bold' : 'hover:bg-emerald-50 text-stone-600'
+                            } ${isPast ? 'text-stone-300 cursor-not-allowed opacity-50 hover:bg-transparent' : ''}`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                      return slots;
+                    })()}
+                  </div>
+                </div>
+
+                <div className="bg-emerald-50 p-4 rounded-sm border border-emerald-100">
+                  <div className="text-xs text-emerald-800 font-bold uppercase mb-2">Selected Date</div>
+                  <div className="text-xl font-serif font-bold text-emerald-900">
+                    {parseLocal(selectedDate).toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-TW', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="md:w-2/3">
-            <h3 className="text-lg font-bold text-emerald-900 mb-6 uppercase tracking-wide text-sm border-b border-stone-200 pb-2 flex justify-between items-center">
-              <span>Available Times</span>
-              <span className="text-xs normal-case text-stone-500 font-normal">Eastern Standard Time</span>
-            </h3>
-            <div className="space-y-4">
-              {TIME_SLOTS.map((slot) => {
-                const { isBlocked, remaining, bookings } = getSlotData(slot);
-                const now = new Date();
-                const isToday = selectedDate === formatDate(now);
-                
-                // Compare times for disabling past slots
-                const [h, m] = slot.split(':').map(Number);
-                const slotDate = new Date();
-                slotDate.setHours(h, m, 0, 0);
-                const isPastTime = isToday && slotDate < now;
-                const isFull = remaining === 0;
-                
-                return (
-                  <div key={slot} className="bg-white border border-stone-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:border-emerald-200 transition-colors">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <Clock size={18} className="text-emerald-700" />
-                        <span className="text-xl font-serif font-bold text-stone-800">{slot}</span>
-                      </div>
-                      <div className="flex gap-2 text-xs font-bold uppercase tracking-wider">
-                         {isBlocked ? (
-                           <span className="text-stone-400 bg-stone-100 px-2 py-0.5 rounded">{t.blocked}</span>
-                         ) : isPastTime ? (
-                           <span className="text-stone-400 bg-stone-100 px-2 py-0.5 rounded">{t.past}</span>
-                         ) : isFull ? (
-                           <span className="text-red-500 bg-red-50 px-2 py-0.5 rounded">{t.full}</span>
-                         ) : (
-                           <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{remaining} {t.slotsAvailable}</span>
-                         )}
-                      </div>
-                    </div>
-
-                    {!isAdmin ? (
-                      <button
-                        onClick={() => handleBookClick(slot)}
-                        disabled={isFull || isBlocked || isPastTime}
-                        className={`px-6 py-3 text-sm font-bold uppercase tracking-wider transition-all min-w-[140px] ${
-                          isFull || isBlocked || isPastTime
-                            ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
-                            : 'bg-emerald-800 text-white hover:bg-emerald-900 shadow-sm'
-                        }`}
-                      >
-                        {isBlocked || isFull || isPastTime ? 'Unavailable' : 'Select'}
-                      </button>
-                    ) : (
-                      <div className="flex gap-2">
-                        <button onClick={() => toggleBlockSlot(slot, isBlocked)} className="text-xs bg-stone-200 hover:bg-stone-300 px-3 py-2 font-bold uppercase">{isBlocked ? t.unblock : t.blockHour}</button>
-                      </div>
-                    )}
+            <div className="md:w-2/3">
+              <h3 className="text-lg font-bold text-emerald-900 mb-6 uppercase tracking-wide text-sm border-b border-stone-200 pb-2 flex justify-between items-center">
+                <span>Available Times</span>
+                <span className="text-xs normal-case text-stone-500 font-normal">Eastern Standard Time</span>
+              </h3>
+              
+              {dailySlots.length === 0 ? (
+                <div className="text-center py-12 text-stone-500 bg-stone-50 border border-dashed border-stone-200">
+                  <Clock className="mx-auto mb-2 text-stone-400" />
+                  <p>Closed on Sundays. Please select another date.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {dailySlots.map((slot) => {
+                    const { isBlocked, remaining, bookings } = getSlotData(slot);
+                    const now = new Date();
+                    const isToday = selectedDate === formatDate(now);
                     
-                    {isAdmin && bookings.length > 0 && (
-                      <div className="w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 sm:border-l sm:border-stone-100 sm:pl-4">
-                        {bookings.map(b => (
-                          <div key={b.id} className="text-xs mb-1 flex items-center justify-between gap-2 bg-stone-50 p-1.5 rounded">
-                             <div className="overflow-hidden">
-                               <div className="font-bold truncate">{b.name}</div>
-                               <div className="text-stone-500">{b.phone}</div>
-                             </div>
-                             <div className="flex gap-1">
-                               <a href={`tel:${b.phone}`} className="p-1 bg-white border hover:bg-emerald-50" title="Call"><Phone size={12}/></a>
-                               <a href={`sms:${b.phone}`} className="p-1 bg-white border hover:bg-emerald-50" title="Text"><MessageCircle size={12}/></a>
-                               <button onClick={() => handleDeleteBooking(b.id)} className="p-1 bg-white border hover:bg-red-50 text-red-600" title="Delete"><Trash2 size={12}/></button>
-                             </div>
+                    // Compare times for disabling past slots
+                    const [h, m] = slot.split(':').map(Number);
+                    const slotDate = new Date();
+                    slotDate.setHours(h, m, 0, 0);
+                    const isPastTime = isToday && slotDate < now;
+                    const isFull = remaining === 0;
+                    
+                    return (
+                      <div key={slot} className="bg-white border border-stone-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:border-emerald-200 transition-colors">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <Clock size={18} className="text-emerald-700" />
+                            <span className="text-xl font-serif font-bold text-stone-800">{slot}</span>
                           </div>
-                        ))}
+                          <div className="flex gap-2 text-xs font-bold uppercase tracking-wider">
+                            {isBlocked ? (
+                              <span className="text-stone-400 bg-stone-100 px-2 py-0.5 rounded">{t.blocked}</span>
+                            ) : isPastTime ? (
+                              <span className="text-stone-400 bg-stone-100 px-2 py-0.5 rounded">{t.past}</span>
+                            ) : isFull ? (
+                              <span className="text-red-500 bg-red-50 px-2 py-0.5 rounded">{t.full}</span>
+                            ) : (
+                              // Removed "1 slot available" text as requested, simply rendering nothing or keeping space
+                              <span className="text-emerald-600 px-2 py-0.5 rounded"></span>
+                            )}
+                          </div>
+                        </div>
+
+                        {!isAdmin ? (
+                          <button
+                            onClick={() => handleBookClick(slot)}
+                            disabled={isFull || isBlocked || isPastTime}
+                            className={`px-6 py-3 text-sm font-bold uppercase tracking-wider transition-all min-w-[140px] ${
+                              isFull || isBlocked || isPastTime
+                                ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+                                : 'bg-emerald-800 text-white hover:bg-emerald-900 shadow-sm'
+                            }`}
+                          >
+                            {isBlocked || isFull || isPastTime ? 'Unavailable' : 'Select'}
+                          </button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button onClick={() => toggleBlockSlot(slot, isBlocked)} className="text-xs bg-stone-200 hover:bg-stone-300 px-3 py-2 font-bold uppercase">{isBlocked ? t.unblock : t.blockHour}</button>
+                          </div>
+                        )}
+                        
+                        {isAdmin && bookings.length > 0 && (
+                          <div className="w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 sm:border-l sm:border-stone-100 sm:pl-4">
+                            {bookings.map(b => (
+                              <div key={b.id} className="text-xs mb-1 flex items-center justify-between gap-2 bg-stone-50 p-1.5 rounded">
+                                <div className="overflow-hidden">
+                                  <div className="font-bold truncate">{b.name}</div>
+                                  <div className="text-stone-500">{b.phone}</div>
+                                </div>
+                                <div className="flex gap-1">
+                                  <a href={`tel:${b.phone}`} className="p-1 bg-white border hover:bg-emerald-50" title="Call"><Phone size={12}/></a>
+                                  <a href={`sms:${b.phone}`} className="p-1 bg-white border hover:bg-emerald-50" title="Text"><MessageCircle size={12}/></a>
+                                  <button onClick={() => handleDeleteBooking(b.id)} className="p-1 bg-white border hover:bg-red-50 text-red-600" title="Delete"><Trash2 size={12}/></button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderServices = () => (
     <div className="animate-in fade-in duration-500 py-16 px-6">
@@ -789,8 +815,8 @@ export default function App() {
            </div>
            <div>
              <h4 className="text-white font-bold uppercase tracking-widest mb-4">Hours</h4>
-             <p>Mon - Fri: 9:00 AM - 6:00 PM</p>
-             <p>Sat: 10:00 AM - 4:00 PM</p>
+             <p>Mon - Fri: 9:00 AM - 5:00 PM</p>
+             <p>Sat: 9:00 AM - 4:00 PM</p>
              <p>Sun: Closed</p>
            </div>
         </div>
