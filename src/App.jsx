@@ -47,8 +47,6 @@ const firebaseConfig = {
   appId: "1:78608558880:web:adbb1fe3596d2b88c58545"
 };
 
-
-
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -75,7 +73,7 @@ const TRANSLATIONS = {
     welcomeTitle: "Welcome to Wellspring",
     welcomeText: "We are dedicated to providing personalized care that addresses the root cause of your health concerns. Our clinic offers a sanctuary for healing, combining ancient wisdom with modern medical understanding.",
     bookingTitle: "Schedule Your Visit",
-    bookingSubtitle: "Select a time that works for you. Private treatment sessions available every 30 minutes.",
+    bookingSubtitle: "Select a time that works for you. Private treatment sessions available every 15 minutes.",
     selectDate: "Select Date",
     slotsAvailable: "slot available",
     full: "Booked",
@@ -144,7 +142,7 @@ const TRANSLATIONS = {
     welcomeTitle: "歡迎來到源泉",
     welcomeText: "我們致力於提供個性化的護理，解決您健康問題的根源。我們的診所結合了古老的智慧與現代醫學，為您提供一個療癒的避風港。",
     bookingTitle: "預約您的診療",
-    bookingSubtitle: "選擇適合您的時間。每30分鐘提供一個私人治療時段。",
+    bookingSubtitle: "選擇適合您的時間。每15分鐘提供一個私人治療時段。",
     selectDate: "選擇日期",
     slotsAvailable: "個名額",
     full: "已預約",
@@ -197,17 +195,19 @@ const TRANSLATIONS = {
 };
 
 // --- Time Slots Configuration ---
-// Generate 30-minute intervals from 9:00 to 17:00
+// Generate 15-minute intervals from 9:00 to 16:00 (4 PM)
+// This will generate slots from 9:00 up to 15:45
 const generateTimeSlots = (startHour, endHour) => {
   const slots = [];
   for (let h = startHour; h < endHour; h++) {
-    slots.push(`${h}:00`);
-    slots.push(`${h}:30`);
+    for (let m = 0; m < 60; m += 15) {
+      slots.push(`${h}:${m === 0 ? '00' : m}`);
+    }
   }
   return slots;
 };
 
-const TIME_SLOTS = generateTimeSlots(9, 17); // 9:00, 9:30... 16:30
+const TIME_SLOTS = generateTimeSlots(9, 16); 
 const MAX_SLOTS = 1; // Only one slot available per time
 
 // --- Helper Functions ---
@@ -225,13 +225,6 @@ const formatDate = (date) => {
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
-
-const getNextHalfHour = (timeStr) => {
-  const [h, m] = timeStr.split(':').map(Number);
-  const d = new Date();
-  d.setHours(h, m + 30);
-  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 // --- Components ---
 
@@ -405,6 +398,7 @@ export default function App() {
     const results = appointments.filter(
       app => app.phone === cancelPhone && app.type === 'booking'
     );
+    // Sort logic updated for string times if needed, but ISO date sort helps
     results.sort((a, b) => new Date(a.date) - new Date(b.date) || a.hour.localeCompare(b.hour));
     setFoundBookings(results);
     setHasSearched(true);
@@ -574,7 +568,7 @@ export default function App() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-1">
                         <Clock size={18} className="text-emerald-700" />
-                        <span className="text-xl font-serif font-bold text-stone-800">{slot} - {getNextHalfHour(slot)}</span>
+                        <span className="text-xl font-serif font-bold text-stone-800">{slot}</span>
                       </div>
                       <div className="flex gap-2 text-xs font-bold uppercase tracking-wider">
                          {isBlocked ? (
