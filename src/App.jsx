@@ -40,7 +40,7 @@ import {
   Grid,
   List,
   Ban,
-  Mail 
+  Mail
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -648,7 +648,8 @@ export default function App() {
                     className={`border-r p-1 transition-colors cursor-pointer flex items-center justify-center
                       ${isBlocked ? 'bg-stone-200' : isBooked ? 'bg-emerald-100' : 'hover:bg-emerald-50'}
                     `}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (isBooked) {
                         setSelectedBookingDetails(bookings[0]);
                       } else {
@@ -660,7 +661,7 @@ export default function App() {
                     {isBlocked && <X size={12} className="text-stone-400"/>}
                     {isBooked && (
                       <div className="text-[10px] leading-tight text-emerald-900 font-bold truncate w-full text-center">
-                        {bookings[0].firstName} 
+                        {bookings[0].firstName || bookings[0].name} 
                       </div>
                     )}
                   </div>
