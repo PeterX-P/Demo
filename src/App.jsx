@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -15,7 +14,8 @@ import {
   doc,
   setDoc,
   getDoc,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch // Added for batch operations
 } from 'firebase/firestore';
 import { 
   Calendar, 
@@ -38,11 +38,10 @@ import {
   Printer,
   Settings,
   Grid,
-  List
+  List,
+  Ban // Added for Block icon
 } from 'lucide-react';
 
-// --- CONFIGURATION ---
-// IMPORTANT: Replace these values with your actual Firebase project keys
 // --- CONFIGURATION ---
 // IMPORTANT: Replace these values with your actual Firebase project keys
 const firebaseConfig = {
@@ -108,11 +107,17 @@ const TRANSLATIONS = {
     past: "Past",
     footer: "© 2025 Wellspring Acupuncture. All rights reserved.",
     settings: "Settings",
-    maxDateLabel: "Last Allowed Booking Date",
+    daysAheadLabel: "Days to Open Calendar",
+    daysAheadDesc: "How many days in the future can patients book? (e.g. 60)",
     save: "Save Settings",
     saved: "Settings Saved!",
     weekView: "Week View",
     dayView: "Day View",
+    blockRange: "Block Time Range",
+    blockRangeTitle: "Block Multiple Slots",
+    startTime: "Start Time",
+    endTime: "End Time",
+    blockConfirm: "Block Selected Range",
     servicesPage: {
       title: "Our Specialties",
       subtitle: "Comprehensive care for your well-being",
@@ -184,11 +189,17 @@ const TRANSLATIONS = {
     past: "已過",
     footer: "© 2025 源泉針灸中心 版權所有",
     settings: "設置",
-    maxDateLabel: "最後開放預約日期",
+    daysAheadLabel: "開放預約天數",
+    daysAheadDesc: "允許患者提前多少天預約？(例如 60)",
     save: "保存設置",
     saved: "設置已保存！",
     weekView: "週視圖",
     dayView: "日視圖",
+    blockRange: "批量封鎖時段",
+    blockRangeTitle: "封鎖時段範圍",
+    startTime: "開始時間",
+    endTime: "結束時間",
+    blockConfirm: "封鎖選定範圍",
     servicesPage: {
       title: "專業服務",
       subtitle: "為您量身定制的整體療法",
@@ -256,6 +267,12 @@ const getDailySlots = (dateStr) => {
   return slots;
 };
 
+// Helper to convert "9:15" to minutes for comparison
+const timeToMinutes = (timeStr) => {
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+};
+
 // --- Components ---
 
 const Modal = ({ isOpen, onClose, title, children }) => {
@@ -289,7 +306,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [lang, setLang] = useState('en');
   const [appointments, setAppointments] = useState([]);
-  const [settings, setSettings] = useState({ maxBookingDate: '' });
+  const [settings, setSettings] = useState({ bookingWindowDays: 60 }); // Default 60 days
   const [isAdmin, setIsAdmin] = useState(false);
   
   const [currentPage, setCurrentPage] = useState('home');
@@ -306,6 +323,7 @@ export default function App() {
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isBlockRangeOpen, setIsBlockRangeOpen] = useState(false); // New modal for range blocking
   
   const [selectedSlot, setSelectedSlot] = useState(null);
   
@@ -317,6 +335,10 @@ export default function App() {
   
   const [adminPass, setAdminPass] = useState('');
   const [formError, setFormError] = useState('');
+
+  // Block Range State
+  const [blockStartTime, setBlockStartTime] = useState('09:00');
+  const [blockEndTime, setBlockEndTime] = useState('12:00');
 
   const [cancelPhone, setCancelPhone] = useState('');
   const [foundBookings, setFoundBookings] = useState([]);
@@ -375,11 +397,17 @@ export default function App() {
   };
 
   const isDateAllowed = (dateStr) => {
-    if (!settings.maxBookingDate) return true; // No limit if not set
+    // Dynamic window calculation
+    const windowDays = parseInt(settings.bookingWindowDays || 60);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const maxDate = new Date(today);
+    maxDate.setDate(today.getDate() + windowDays);
+    
     const selected = parseLocal(dateStr);
-    const max = parseLocal(settings.maxBookingDate);
-    // Compare only dates
-    return selected <= max;
+    
+    return selected <= maxDate && selected >= today;
   };
 
   const handleBookClick = (slotTime) => {
@@ -484,6 +512,52 @@ export default function App() {
     }
   };
 
+  // Batch Block Function
+  const handleRangeBlockSubmit = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    const startMins = timeToMinutes(blockStartTime);
+    const endMins = timeToMinutes(blockEndTime);
+    
+    // Get all valid slots for the day
+    const dailySlots = getDailySlots(selectedDate);
+    
+    // Filter slots within the range
+    const slotsToBlock = dailySlots.filter(slot => {
+      const slotMins = timeToMinutes(slot);
+      // Include start time, exclude end time (e.g. 9:00 to 10:00 blocks 9:00, 9:15, 9:30, 9:45)
+      return slotMins >= startMins && slotMins < endMins;
+    });
+
+    try {
+      const batch = writeBatch(db);
+      
+      slotsToBlock.forEach(slot => {
+        // Check if already blocked or booked to avoid duplicates/errors
+        const existing = appointments.find(
+          app => app.date === selectedDate && app.hour === slot
+        );
+        
+        if (!existing) {
+          const docRef = doc(collection(db, 'appointments'));
+          batch.set(docRef, {
+            date: selectedDate,
+            hour: slot,
+            type: 'blocked',
+            blockedBy: user.uid,
+            createdAt: serverTimestamp()
+          });
+        }
+      });
+
+      await batch.commit();
+      setIsBlockRangeOpen(false);
+    } catch (err) {
+      console.error("Error batch blocking:", err);
+    }
+  };
+
   const handleDeleteBooking = async (id, confirmMsg) => {
     if (confirmMsg && !confirm(confirmMsg)) return;
     try {
@@ -526,10 +600,9 @@ export default function App() {
   // --- Renderers ---
 
   const renderWeekView = () => {
-    // Generate dates for the week (Start from Sunday or Monday? Let's do Sunday for standard calendar view)
+    // Generate dates for the week
     const dates = [];
     const start = new Date(weekStartDate);
-    // Adjust to Sunday of the current week
     start.setDate(start.getDate() - start.getDay()); 
     
     for (let i = 0; i < 7; i++) {
@@ -538,8 +611,6 @@ export default function App() {
       dates.push(formatDate(d));
     }
 
-    // Determine all possible time slots for the week view (union of all daily slots)
-    // We know max range is 9am-5pm
     const allSlots = [];
     for (let h = 9; h <= 16; h++) {
         for (let m = 0; m < 60; m += 15) {
@@ -580,10 +651,7 @@ export default function App() {
               </div>
               {dates.map(dateStr => {
                 const day = parseLocal(dateStr).getDay();
-                // Check if this time slot is valid for this day (e.g., Sat closes earlier, Sun closed)
-                // Sunday closed
                 if (day === 0) return <div key={dateStr} className="bg-stone-100 border-r"></div>;
-                // Sat after 4pm closed (logic from getDailySlots: endHour 15:45)
                 const [h, m] = time.split(':').map(Number);
                 if (day === 6 && (h > 15 || (h === 15 && m > 45))) {
                    return <div key={dateStr} className="bg-stone-100 border-r"></div>;
@@ -604,7 +672,7 @@ export default function App() {
                     {isBlocked && <X size={12} className="text-stone-400"/>}
                     {isBooked && (
                       <div className="text-[10px] leading-tight text-emerald-900 font-bold truncate w-full text-center">
-                        {bookings[0].firstName} {/* Show First Name only for brevity */}
+                        {bookings[0].firstName} 
                       </div>
                     )}
                   </div>
@@ -612,11 +680,6 @@ export default function App() {
               })}
             </div>
           ))}
-        </div>
-        <div className="mt-4 text-xs text-stone-500 flex gap-4">
-           <div className="flex items-center gap-1"><div className="w-3 h-3 bg-stone-200"></div> Blocked</div>
-           <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-100"></div> Booked</div>
-           <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white border"></div> Available (Click to Block)</div>
         </div>
       </div>
     );
@@ -698,12 +761,20 @@ export default function App() {
                 Available Times <span className="text-xs normal-case text-stone-500 font-normal ml-2">EST</span>
              </h3>
              {isAdmin && (
-               <button 
-                 onClick={() => setViewMode('week')} 
-                 className="flex items-center gap-1 text-xs bg-stone-100 hover:bg-emerald-100 text-emerald-900 px-3 py-1 rounded-full font-bold transition-colors"
-               >
-                 <Grid size={14}/> {t.weekView}
-               </button>
+               <div className="flex gap-2">
+                 <button 
+                   onClick={() => setIsBlockRangeOpen(true)} 
+                   className="flex items-center gap-1 text-xs bg-red-50 hover:bg-red-100 text-red-900 px-3 py-1 rounded-full font-bold transition-colors"
+                 >
+                   <Ban size={14}/> {t.blockRange}
+                 </button>
+                 <button 
+                   onClick={() => setViewMode('week')} 
+                   className="flex items-center gap-1 text-xs bg-stone-100 hover:bg-emerald-100 text-emerald-900 px-3 py-1 rounded-full font-bold transition-colors"
+                 >
+                   <Grid size={14}/> {t.weekView}
+                 </button>
+               </div>
              )}
           </div>
           
@@ -1095,16 +1166,51 @@ export default function App() {
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title={t.settings}>
         <form onSubmit={saveSettings} className="space-y-5">
           <div>
-            <label className="block text-xs font-bold text-emerald-900 uppercase tracking-widest mb-2">{t.maxDateLabel}</label>
+            <label className="block text-xs font-bold text-emerald-900 uppercase tracking-widest mb-2">{t.daysAheadLabel}</label>
             <input 
-              type="date" 
-              value={settings.maxBookingDate || ''} 
-              onChange={(e) => setSettings({...settings, maxBookingDate: e.target.value})} 
+              type="number" 
+              value={settings.bookingWindowDays || ''} 
+              onChange={(e) => setSettings({...settings, bookingWindowDays: e.target.value})} 
               className="w-full px-4 py-3 bg-stone-50 border border-stone-200 focus:border-emerald-500 outline-none" 
+              placeholder="e.g. 60"
             />
-            <p className="text-xs text-stone-500 mt-2">Patients cannot book appointments after this date.</p>
+            <p className="text-xs text-stone-500 mt-2">{t.daysAheadDesc}</p>
           </div>
           <button type="submit" className="w-full py-3 bg-emerald-900 text-white font-bold uppercase tracking-widest hover:bg-emerald-800 transition-colors shadow-lg">{t.save}</button>
+        </form>
+      </Modal>
+
+      {/* Admin Block Range Modal */}
+      <Modal isOpen={isBlockRangeOpen} onClose={() => setIsBlockRangeOpen(false)} title={t.blockRangeTitle}>
+        <form onSubmit={handleRangeBlockSubmit} className="space-y-5">
+          <div className="p-3 bg-red-50 text-red-700 text-xs border-l-4 border-red-500 rounded">
+             <p>This will block all slots between the selected times for <strong>{selectedDate}</strong>.</p>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-emerald-900 uppercase tracking-widest mb-2">{t.startTime}</label>
+              <select 
+                value={blockStartTime} 
+                onChange={(e) => setBlockStartTime(e.target.value)}
+                className="w-full px-4 py-3 bg-stone-50 border border-stone-200 focus:border-emerald-500 outline-none"
+              >
+                {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-emerald-900 uppercase tracking-widest mb-2">{t.endTime}</label>
+              <select 
+                value={blockEndTime} 
+                onChange={(e) => setBlockEndTime(e.target.value)}
+                className="w-full px-4 py-3 bg-stone-50 border border-stone-200 focus:border-emerald-500 outline-none"
+              >
+                {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" className="w-full py-3 bg-red-700 text-white font-bold uppercase tracking-widest hover:bg-red-800 transition-colors shadow-lg">{t.blockConfirm}</button>
         </form>
       </Modal>
 
