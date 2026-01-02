@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -40,11 +39,13 @@ import {
   Settings,
   Grid,
   List,
-  Ban
+  Ban,
+  Mail // Added Mail icon
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
 // IMPORTANT: Replace these values with your actual Firebase project keys
+// Go to Firebase Console -> Project Settings -> General -> Your Apps
 const firebaseConfig = {
   apiKey: "AIzaSyDJosQQhRGcebaxJQ37gNTnqXawsYHO9oI",
   authDomain: "harmony-acupuncture.firebaseapp.com",
@@ -53,6 +54,7 @@ const firebaseConfig = {
   messagingSenderId: "78608558880",
   appId: "1:78608558880:web:adbb1fe3596d2b88c58545"
 };
+
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -304,7 +306,6 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [lang, setLang] = useState('en');
   const [appointments, setAppointments] = useState([]);
-  // Settings: bookingWindowWeeks replaces days
   const [settings, setSettings] = useState({ bookingWindowWeeks: 4 }); 
   const [isAdmin, setIsAdmin] = useState(false);
   
@@ -389,10 +390,7 @@ export default function App() {
   };
 
   const isDateAllowed = (dateStr) => {
-    // If Admin, always allow viewing
     if (isAdmin) return true;
-
-    // Use weeks setting, default to 4 if not set
     const weeks = parseInt(settings.bookingWindowWeeks || 4);
     const days = weeks * 7;
     
@@ -646,7 +644,7 @@ export default function App() {
                       ${isBlocked ? 'bg-stone-200' : isBooked ? 'bg-emerald-100' : 'hover:bg-emerald-50'}
                     `}
                     onClick={() => !isBooked && toggleBlockSlot(dateStr, time, isBlocked)}
-                    title={isBooked ? bookings[0].name : isBlocked ? 'Blocked' : 'Available'}
+                    title={isBooked ? `${bookings[0].name}\n${bookings[0].phone}\n${bookings[0].email}` : isBlocked ? 'Blocked' : 'Available'}
                   >
                     {isBlocked && <X size={12} className="text-stone-400"/>}
                     {isBooked && (
@@ -706,7 +704,6 @@ export default function App() {
                     const isSelected = dateStr === selectedDate;
                     const isPast = date < new Date(new Date().setHours(0,0,0,0));
                     
-                    // Visually disable future dates outside window
                     const isAllowed = isDateAllowed(dateStr); 
                     
                     slots.push(
@@ -826,10 +823,12 @@ export default function App() {
                             <div className="overflow-hidden">
                               <div className="font-bold truncate">{b.name}</div>
                               <div className="text-stone-500">{b.phone}</div>
+                              <div className="text-stone-400 truncate" title={b.email}>{b.email}</div>
                             </div>
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 self-start">
                               <a href={`tel:${b.phone}`} className="p-1 bg-white border hover:bg-emerald-50" title="Call"><Phone size={12}/></a>
                               <a href={`sms:${b.phone}`} className="p-1 bg-white border hover:bg-emerald-50" title="Text"><MessageCircle size={12}/></a>
+                              <a href={`mailto:${b.email}`} className="p-1 bg-white border hover:bg-emerald-50" title="Email"><Mail size={12}/></a>
                               <button onClick={() => handleDeleteBooking(b.id)} className="p-1 bg-white border hover:bg-red-50 text-red-600" title="Delete"><Trash2 size={12}/></button>
                             </div>
                           </div>
@@ -871,6 +870,13 @@ export default function App() {
     </div>
   );
 
+  const getServiceIcon = (index) => {
+    if (index % 4 === 0) return <Leaf size={32} />;
+    if (index % 4 === 1) return <Activity size={32} />;
+    if (index % 4 === 2) return <Heart size={32} />;
+    return <Star size={32} />;
+  };
+
   const renderServices = () => (
     <div className="animate-in fade-in duration-500 py-16 px-6">
       <SectionHeader title={t.servicesPage.title} subtitle={t.servicesPage.subtitle} />
@@ -878,7 +884,7 @@ export default function App() {
         {t.servicesPage.list.map((s, i) => (
           <div key={i} className="flex flex-col md:flex-row gap-6 items-start bg-white p-6 border-b border-stone-100 last:border-0">
              <div className="w-16 h-16 bg-emerald-50 flex items-center justify-center text-emerald-800 shrink-0 rounded-sm">
-                <Leaf size={32} />
+                {getServiceIcon(i)}
              </div>
              <div>
                <h3 className="text-xl font-serif font-bold text-emerald-900 mb-2">{s.title}</h3>
@@ -1039,7 +1045,7 @@ export default function App() {
              <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
                {t.testimonialsPage.list.map((item, i) => (
                  <div key={i} className="bg-stone-50 p-8 border border-stone-100">
-                   <div className="text-emerald-800 mb-4 flex"><Star fill="currentColor" size={16}/><Star fill="currentColor" size={16}/><Star fill="currentColor" size={16}/></div>
+                   <div className="text-emerald-800 mb-4 flex"><Star fill="currentColor" size={16}/><Star fill="currentColor" size={16}/><Star fill="currentColor" size={16}/><Star fill="currentColor" size={16}/><Star fill="currentColor" size={16}/></div>
                    <p className="text-stone-700 italic mb-4 font-serif text-lg">"{item.text}"</p>
                    <div className="font-bold text-emerald-900 uppercase tracking-wide text-sm">- {item.name}</div>
                  </div>
@@ -1160,10 +1166,10 @@ export default function App() {
             <label className="block text-xs font-bold text-emerald-900 uppercase tracking-widest mb-2">{t.daysAheadLabel}</label>
             <input 
               type="number" 
-              value={settings.bookingWindowDays || ''} 
-              onChange={(e) => setSettings({...settings, bookingWindowDays: e.target.value})} 
+              value={settings.bookingWindowWeeks || ''} 
+              onChange={(e) => setSettings({...settings, bookingWindowWeeks: e.target.value})} 
               className="w-full px-4 py-3 bg-stone-50 border border-stone-200 focus:border-emerald-500 outline-none" 
-              placeholder="e.g. 60"
+              placeholder="e.g. 4"
             />
             <p className="text-xs text-stone-500 mt-2">{t.daysAheadDesc}</p>
           </div>
