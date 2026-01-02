@@ -45,7 +45,6 @@ import {
 
 // --- CONFIGURATION ---
 // IMPORTANT: Replace these values with your actual Firebase project keys
-// Go to Firebase Console -> Project Settings -> General -> Your Apps
 const firebaseConfig = {
   apiKey: "AIzaSyDJosQQhRGcebaxJQ37gNTnqXawsYHO9oI",
   authDomain: "harmony-acupuncture.firebaseapp.com",
@@ -54,7 +53,6 @@ const firebaseConfig = {
   messagingSenderId: "78608558880",
   appId: "1:78608558880:web:adbb1fe3596d2b88c58545"
 };
-
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -109,8 +107,8 @@ const TRANSLATIONS = {
     past: "Past",
     footer: "© 2025 Wellspring Acupuncture. All rights reserved.",
     settings: "Settings",
-    daysAheadLabel: "Days to Open Calendar",
-    daysAheadDesc: "How many days in the future can patients book? (e.g. 60)",
+    daysAheadLabel: "Booking Window (Weeks)",
+    daysAheadDesc: "How many weeks ahead can patients book?",
     save: "Save Settings",
     saved: "Settings Saved!",
     weekView: "Week View",
@@ -191,8 +189,8 @@ const TRANSLATIONS = {
     past: "已過",
     footer: "© 2025 源泉針灸中心 版權所有",
     settings: "設置",
-    daysAheadLabel: "開放預約天數",
-    daysAheadDesc: "允許患者提前多少天預約？(例如 60)",
+    daysAheadLabel: "開放預約週數",
+    daysAheadDesc: "允許患者提前多少週預約？",
     save: "保存設置",
     saved: "設置已保存！",
     weekView: "週視圖",
@@ -247,29 +245,27 @@ const formatDate = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-// Generate 15-minute intervals for the day
 const getDailySlots = (dateStr) => {
   const date = parseLocal(dateStr);
   const day = date.getDay(); // 0 = Sun, 6 = Sat
   
   if (day === 0) return []; // Sunday closed
 
-  // M-F (1-5): 9am to 5pm (last appt start 4:45pm)
-  // Sat (6): 9am to 4pm (last appt start 3:45pm)
+  // M-F (1-5): 9am to 5pm
+  // Sat (6): 9am to 4pm
   let startHour = 9;
   let endHour = day === 6 ? 15 : 16; 
 
   const slots = [];
   for (let h = startHour; h <= endHour; h++) {
     for (let m = 0; m < 60; m += 15) {
-      if (h === endHour && m > 0 && day === 6) break; // Sat ends exactly at 4pm? adjust if needed
+      if (h === endHour && m > 0 && day === 6) break;
       slots.push(`${h}:${m === 0 ? '00' : m}`);
     }
   }
   return slots;
 };
 
-// Helper to convert "9:15" to minutes for comparison
 const timeToMinutes = (timeStr) => {
   const [h, m] = timeStr.split(':').map(Number);
   return h * 60 + m;
@@ -308,7 +304,8 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [lang, setLang] = useState('en');
   const [appointments, setAppointments] = useState([]);
-  const [settings, setSettings] = useState({ bookingWindowDays: 60 }); // Default 60 days
+  // Settings: bookingWindowWeeks replaces days
+  const [settings, setSettings] = useState({ bookingWindowWeeks: 4 }); 
   const [isAdmin, setIsAdmin] = useState(false);
   
   const [currentPage, setCurrentPage] = useState('home');
@@ -317,19 +314,17 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
   const [viewMonth, setViewMonth] = useState(new Date());
   
-  // Weekly View State
-  const [viewMode, setViewMode] = useState('day'); // 'day' or 'week'
+  const [viewMode, setViewMode] = useState('day'); 
   const [weekStartDate, setWeekStartDate] = useState(new Date());
 
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isBlockRangeOpen, setIsBlockRangeOpen] = useState(false); // New modal for range blocking
+  const [isBlockRangeOpen, setIsBlockRangeOpen] = useState(false); 
   
   const [selectedSlot, setSelectedSlot] = useState(null);
   
-  // New Form State
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -338,7 +333,6 @@ export default function App() {
   const [adminPass, setAdminPass] = useState('');
   const [formError, setFormError] = useState('');
 
-  // Block Range State
   const [blockStartTime, setBlockStartTime] = useState('09:00');
   const [blockEndTime, setBlockEndTime] = useState('12:00');
 
@@ -353,7 +347,6 @@ export default function App() {
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-  // Fetch Appointments
   useEffect(() => {
     if (!user) return;
     const q = collection(db, 'appointments');
@@ -364,7 +357,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Fetch Settings
   useEffect(() => {
     if (!user) return;
     const settingsDoc = doc(db, 'settings', 'config');
@@ -375,8 +367,6 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [user]);
-
-  // --- Logic ---
 
   const saveSettings = async (e) => {
     e.preventDefault();
@@ -399,13 +389,18 @@ export default function App() {
   };
 
   const isDateAllowed = (dateStr) => {
-    if (!settings.bookingWindowDays) return true; // No limit if not set
-    const windowDays = parseInt(settings.bookingWindowDays || 60);
+    // If Admin, always allow viewing
+    if (isAdmin) return true;
+
+    // Use weeks setting, default to 4 if not set
+    const weeks = parseInt(settings.bookingWindowWeeks || 4);
+    const days = weeks * 7;
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     const maxDate = new Date(today);
-    maxDate.setDate(today.getDate() + windowDays);
+    maxDate.setDate(today.getDate() + days);
     
     const selected = parseLocal(dateStr);
     
@@ -424,7 +419,6 @@ export default function App() {
 
   const submitBooking = async (e) => {
     e.preventDefault();
-    // Validate all fields
     if (!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim()) {
       setFormError(t.requiredFields);
       return;
@@ -433,7 +427,6 @@ export default function App() {
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
     try {
-      // 1. Save to appointments collection
       await addDoc(collection(db, 'appointments'), {
         date: selectedDate,
         hour: selectedSlot,
@@ -447,7 +440,6 @@ export default function App() {
         createdAt: serverTimestamp()
       });
 
-      // 2. Trigger Email Notification (Requires "Trigger Email" Firebase Extension)
       await addDoc(collection(db, 'mail'), {
         to: [email, 'wellspringacuherb@gmail.com'],
         message: {
@@ -514,33 +506,24 @@ export default function App() {
     }
   };
 
-  // Batch Block Function
   const handleRangeBlockSubmit = async (e) => {
     e.preventDefault();
     if (!isAdmin) return;
 
     const startMins = timeToMinutes(blockStartTime);
     const endMins = timeToMinutes(blockEndTime);
-    
-    // Get all valid slots for the day
     const dailySlots = getDailySlots(selectedDate);
-    
-    // Filter slots within the range
     const slotsToBlock = dailySlots.filter(slot => {
       const slotMins = timeToMinutes(slot);
-      // Include start time, exclude end time (e.g. 9:00 to 10:00 blocks 9:00, 9:15, 9:30, 9:45)
       return slotMins >= startMins && slotMins < endMins;
     });
 
     try {
       const batch = writeBatch(db);
-      
       slotsToBlock.forEach(slot => {
-        // Check if already blocked or booked to avoid duplicates/errors
         const existing = appointments.find(
           app => app.date === selectedDate && app.hour === slot
         );
-        
         if (!existing) {
           const docRef = doc(collection(db, 'appointments'));
           batch.set(docRef, {
@@ -552,7 +535,6 @@ export default function App() {
           });
         }
       });
-
       await batch.commit();
       setIsBlockRangeOpen(false);
     } catch (err) {
@@ -599,10 +581,7 @@ export default function App() {
     setWeekStartDate(newDate);
   };
 
-  // --- Renderers ---
-
   const renderWeekView = () => {
-    // Generate dates for the week
     const dates = [];
     const start = new Date(weekStartDate);
     start.setDate(start.getDate() - start.getDay()); 
@@ -631,7 +610,6 @@ export default function App() {
         </div>
 
         <div className="min-w-[800px] bg-white border border-stone-200 text-xs">
-          {/* Header Row */}
           <div className="grid grid-cols-8 border-b border-stone-200 bg-stone-50">
             <div className="p-2 font-bold text-stone-400 text-center border-r">Time</div>
             {dates.map(dateStr => {
@@ -645,7 +623,6 @@ export default function App() {
             })}
           </div>
 
-          {/* Time Rows */}
           {allSlots.map(time => (
             <div key={time} className="grid grid-cols-8 border-b border-stone-100 h-10 hover:bg-stone-50">
               <div className="p-2 text-center border-r font-mono text-stone-500 flex items-center justify-center bg-stone-50">
@@ -693,7 +670,6 @@ export default function App() {
 
     return (
       <div className="flex flex-col md:flex-row gap-12">
-        {/* Calendar Sidebar */}
         <div className="md:w-1/3">
           <div className="bg-white p-6 shadow-lg border border-stone-100 sticky top-24">
             <h3 className="text-lg font-bold text-emerald-900 mb-6 flex items-center gap-2 uppercase tracking-wide text-sm border-b border-stone-100 pb-2">
@@ -729,14 +705,18 @@ export default function App() {
                     const dateStr = formatDate(date);
                     const isSelected = dateStr === selectedDate;
                     const isPast = date < new Date(new Date().setHours(0,0,0,0));
+                    
+                    // Visually disable future dates outside window
+                    const isAllowed = isDateAllowed(dateStr); 
+                    
                     slots.push(
                       <button
                         key={dateStr}
-                        onClick={() => !isPast && setSelectedDate(dateStr)}
-                        disabled={isPast}
+                        onClick={() => !isPast && isAllowed && setSelectedDate(dateStr)}
+                        disabled={isPast || !isAllowed}
                         className={`h-9 w-9 mx-auto rounded-full flex items-center justify-center text-sm transition-all ${
                           isSelected ? 'bg-emerald-800 text-white font-bold' : 'hover:bg-emerald-50 text-stone-600'
-                        } ${isPast ? 'text-stone-300 cursor-not-allowed opacity-50 hover:bg-transparent' : ''}`}
+                        } ${isPast || !isAllowed ? 'text-stone-300 cursor-not-allowed opacity-50 hover:bg-transparent' : ''}`}
                       >
                         {i}
                       </button>
@@ -756,7 +736,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Time Slots */}
         <div className="md:w-2/3">
           <div className="flex justify-between items-center mb-6 border-b border-stone-200 pb-2">
              <h3 className="text-lg font-bold text-emerald-900 uppercase tracking-wide text-sm">
@@ -1119,7 +1098,17 @@ export default function App() {
           </div>
           {formError && <div className="text-red-600 text-sm font-medium bg-red-50 p-3 flex items-center gap-2"><XCircle size={16}/> {formError}</div>}
           <div className="flex gap-4 pt-2">
-            <button type="submit" className="flex-1 py-3 bg-emerald-900 text-white font-bold uppercase tracking-widest hover:bg-emerald-800 transition-colors shadow-lg">{t.confirm}</button>
+            <button 
+              type="submit" 
+              disabled={!(firstName.trim() && lastName.trim() && phone.trim() && email.trim())}
+              className={`flex-1 py-3 font-bold uppercase tracking-widest transition-colors shadow-lg ${
+                (firstName.trim() && lastName.trim() && phone.trim() && email.trim())
+                  ? 'bg-emerald-900 text-white hover:bg-emerald-800'
+                  : 'bg-stone-300 text-stone-500 cursor-not-allowed'
+              }`}
+            >
+              {t.confirm}
+            </button>
           </div>
         </form>
       </Modal>
